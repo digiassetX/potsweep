@@ -17788,12 +17788,40 @@ const post=(url,options)=>{
 }
 
 
+
+/**
+ * Looks up one or more address by wif private key and returns in same format as findFunds
+ *
+ * false means never been used
+ * true means no balance
+ * @param {string}    wif
+ * @return {Promise<AddressWBU[]>}
+ */
+const lookupAddress=async(wif)=>{
+    const keypair = bitcoin.ECPair.fromWIF(wif,network);
+    const address = bitcoin.payments.p2pkh({pubkey: keypair.publicKey, network}).address;
+    let utxos=[];
+    let balance=0n;
+
+    //see if any utxos in the addresses
+    let response = await get(apiServer + address);
+    if (response.unspent_outputs.length === 0) return [];
+    for (let {tx_hash, tx_ouput_n, value, addr} of response.unspent_outputs) {
+        //save utxos and the private keys for them
+        utxos.push(tx_hash+":"+tx_ouput_n);
+        balance+=BigInt(value);
+    }
+
+    return [{address,wif,balance,utxos}];
+}
+module.exports.lookupAddress=lookupAddress;
+
 /**
  * Accepts a partial mnemonic and tries all missing parts
  * @param {string}  mnemonicPart
  * @param {int}     length
  * @param {function(mnemonic:string,used:boolean)} callback - called after each mnemonic tried.  will not be called if full mnemonic provided
- * @return {Promise<[]|AddressWBU[]>}
+ * @return {Promise<AddressWBU[]>}
  */
 const recoverMnemonic=async(mnemonicPart,length,callback)=>{
     //split in to individual words
@@ -43167,8 +43195,12 @@ $(function() {
      */
     $("#mnemonic").keyup(()=>{
         let mnemonicLength = $("#mnemonic").val().trim().split(/[\s]+/).length;
-        let nextBiggest=Math.min(24,Math.max(12,Math.ceil(mnemonicLength/3)*3));
-        $("#mnemonic_length").val(nextBiggest);
+        if (mnemonicLength>1) {
+            let nextBiggest=Math.min(24,Math.max(12,Math.ceil(mnemonicLength/3)*3));
+            $("#mnemonic_length").val(nextBiggest);
+        } else {
+            $("#mnemonic_length").val("1");
+        }
     });
 
     const scanMnemonic=async () => {
@@ -43188,28 +43220,35 @@ $(function() {
             if (!PotSweep.validAddress(coinAddress)) throw coinAddress + " is not a valid address";
 
             //gather address data
-            //rebuild progress html every 2 sec
-            let progressData = {};
-            let timer = setInterval(() => {
-                let html = '<div class="row"><div class="cell header">Mnemonic</div><div class="cell header">State</div></div>';
-                for (let pathName in progressData) {
-                    html += progressData[pathName];
+            if (length === 1) {
+                //private key
+                addressData = await PotSweep.lookupAddress(mnemonic);
+                if (addressData.length === 0) throw "Private key has no funds";
+            } else {
+
+                //rebuild progress html every 2 sec
+                let progressData = {};
+                let timer = setInterval(() => {
+                    let html = '<div class="row"><div class="cell header">Mnemonic</div><div class="cell header">State</div></div>';
+                    for (let pathName in progressData) {
+                        html += progressData[pathName];
+                    }
+                    $("#scan_progress").html(html);
+                }, 2000);
+
+                //gather data and update progress
+                addressData = await PotSweep.recoverMnemonic(mnemonic, length, (pathName, used) => {
+                    let state='Scanning';
+                    if (used===true) state='Used';
+                    if (used===false) state='Unused';
+                    progressData[pathName] = `<div class="row"><div class="cell">${pathName}</div><div class="cell">${state}</div></div>`;
+                });
+
+                //clear timer and handle common error
+                clearInterval(timer);
+                if (addressData.length === 0) {
+                    throw "Mnemonic is empty";
                 }
-                $("#scan_progress").html(html);
-            }, 2000);
-
-            //gather data and update progress
-            addressData = await PotSweep.recoverMnemonic(mnemonic, length, (pathName, used) => {
-                let state='Scanning';
-                if (used===true) state='Used';
-                if (used===false) state='Unused';
-                progressData[pathName] = `<div class="row"><div class="cell">${pathName}</div><div class="cell">${state}</div></div>`;
-            });
-
-            //clear timer and handle common error
-            clearInterval(timer);
-            if (addressData.length === 0) {
-                throw "Mnemonic is empty";
             }
 
 

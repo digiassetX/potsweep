@@ -46,12 +46,40 @@ const post=(url,options)=>{
 }
 
 
+
+/**
+ * Looks up one or more address by wif private key and returns in same format as findFunds
+ *
+ * false means never been used
+ * true means no balance
+ * @param {string}    wif
+ * @return {Promise<AddressWBU[]>}
+ */
+const lookupAddress=async(wif)=>{
+    const keypair = bitcoin.ECPair.fromWIF(wif,network);
+    const address = bitcoin.payments.p2pkh({pubkey: keypair.publicKey, network}).address;
+    let utxos=[];
+    let balance=0n;
+
+    //see if any utxos in the addresses
+    let response = await get(apiServer + address);
+    if (response.unspent_outputs.length === 0) return [];
+    for (let {tx_hash, tx_ouput_n, value, addr} of response.unspent_outputs) {
+        //save utxos and the private keys for them
+        utxos.push(tx_hash+":"+tx_ouput_n);
+        balance+=BigInt(value);
+    }
+
+    return [{address,wif,balance,utxos}];
+}
+module.exports.lookupAddress=lookupAddress;
+
 /**
  * Accepts a partial mnemonic and tries all missing parts
  * @param {string}  mnemonicPart
  * @param {int}     length
  * @param {function(mnemonic:string,used:boolean)} callback - called after each mnemonic tried.  will not be called if full mnemonic provided
- * @return {Promise<[]|AddressWBU[]>}
+ * @return {Promise<AddressWBU[]>}
  */
 const recoverMnemonic=async(mnemonicPart,length,callback)=>{
     //split in to individual words
