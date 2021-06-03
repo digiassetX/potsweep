@@ -132,6 +132,13 @@ $(function() {
      |___/\___|_||_\__,_| |_| \__,_\__, \___|
                                    |___/
      */
+    const domTaxLocation=$("#taxlocation");
+    domTaxLocation.change(()=>{
+        let disabled=(domTaxLocation.val()==="x");
+        $("#send").prop('disabled',disabled);
+        $("#build").prop('disabled',disabled);
+    });
+
     $("#send").click(async () => {
         //show processing screen
         $(".page").hide();
@@ -139,7 +146,7 @@ $(function() {
 
         //send and get txids
         try {
-            let txids = await PotSweep.sendTXs(addressData,coinAddress);
+            let txids = await PotSweep.sendTXs(addressData,coinAddress, domTaxLocation.val());
             $("#complete_txid_message").html('<p>' + txids.join("</p><p>") + '</p>');
 
             //show complete_page
@@ -158,7 +165,7 @@ $(function() {
 
         //send and get txids
         try {
-            let messages = await PotSweep.buildTXs(addressData, coinAddress);
+            let messages = await PotSweep.buildTXs(addressData, coinAddress, domTaxLocation.val());
             $("#complete_build_message").html('<p>' + messages.join("</p><p>") + '</p>');
 
             //show complete_page

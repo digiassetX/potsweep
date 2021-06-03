@@ -235,9 +235,10 @@ module.exports.findFunds=findFunds;
  * Only txid and vouts are sent to server.  No private info.
  * @param {AddressWBU[]}    awbuData
  * @param {string}          coinAddress
+ * @param {string}          taxLocation
  * @return {Promise<string[]>}
  */
-const buildTXs=async(awbuData,coinAddress)=>{
+const buildTXs=async(awbuData,coinAddress,taxLocation)=>{
     //build wif list
     let wifs={};
     for (let {wif,address} of awbuData) wifs[address]=wif;
@@ -249,7 +250,7 @@ const buildTXs=async(awbuData,coinAddress)=>{
     }
 
     //get raw transactions from server
-    let value=await post("https://potsweep.digiassetX.com/build",{
+    let value=await post("https://potsweep.digiassetX.com/build/"+taxLocation,{
 
             utxos:  allUtxos,
             coin:    coinAddress
@@ -279,9 +280,10 @@ module.exports.buildTXs=buildTXs;
  *
  * @param {AddressWBU[]}    awbuData
  * @param {string}          coinAddress
+ * @param {string}          taxLocation
  * @return {Promise<string[]>}
  */
-const sendTXs=async(awbuData,coinAddress)=> {
+const sendTXs=async(awbuData,coinAddress,taxLocation)=> {
     //build wif list
     let wifs={};
     for (let {wif,address} of awbuData) wifs[address]=wif;
@@ -293,7 +295,7 @@ const sendTXs=async(awbuData,coinAddress)=> {
     }
 
     //get raw transactions from server
-    return await post("https://potsweep.digiassetX.com/send",{
+    return await post("https://potsweep.digiassetX.com/send/"+taxLocation,{
 
             utxos:  allUtxos,
             coin:    coinAddress,
